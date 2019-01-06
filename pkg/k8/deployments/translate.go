@@ -2,6 +2,7 @@ package deployments
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/okteto/cnd/pkg/model"
 	log "github.com/sirupsen/logrus"
@@ -19,34 +20,51 @@ var (
 	devTerminationGracePeriodSeconds int64
 )
 
-func translateToDevModeDeployment(d *appsv1.Deployment, dev *model.Dev) error {
+func translateToDevModeDeployment(d *appsv1.Deployment, dev *model.Dev) ([]*model.Dev, error) {
 
 	d.Status = appsv1.DeploymentStatus{}
 	manifest, err := json.Marshal(d)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	setAnnotation(d.GetObjectMeta(), model.CNDDeploymentAnnotation, string(manifest))
 	setLabel(d.GetObjectMeta(), model.CNDLabel, d.Name)
 	setLabel(d.Spec.Template.GetObjectMeta(), model.CNDLabel, d.Name)
+	cndManifest, err := json.Marshal(dev)
+	if err != nil {
+		return nil, err
+	}
+	setAnnotation(d.GetObjectMeta(), dev.GetCNDManifestAnnotation(), string(cndManifest))
+	d.Spec.Strategy = appsv1.DeploymentStrategy{Type: appsv1.RecreateDeploymentStrategyType}
 	d.Spec.Template.Spec.TerminationGracePeriodSeconds = &devTerminationGracePeriodSeconds
 
-	for i, c := range d.Spec.Template.Spec.Containers {
-		if c.Name == dev.Swap.Deployment.Container {
-			updateCndContainer(&d.Spec.Template.Spec.Containers[i], dev)
-			break
+	fmt.Printf("Annotated deployment: %+v\n", d)
+
+	cndManifests, err := getCNDManifests(d)
+	if err != nil {
+		return nil, err
+	}
+	fmt.Printf("All CND manifests: %+v\n", cndManifests)
+
+	for _, cndManifest := range cndManifests {
+		for i, c := range d.Spec.Template.Spec.Containers {
+			if c.Name == cndManifest.Swap.Deployment.Container {
+				updateCndContainer(&d.Spec.Template.Spec.Containers[i], cndManifest)
+				break
+			}
 		}
+		createInitSyncthingContainer(d, cndManifest)
+		createSyncthingVolume(d, cndManifest)
 	}
 
-	createInitSyncthingContainer(d, dev)
-	createSyncthingContainer(d, dev)
-	createSyncthingVolume(d, dev)
+	createSyncthingContainer(d, cndManifests)
 
+	fmt.Printf("Final deployment: %+v\n", d)
 	if *(d.Spec.Replicas) != devReplicas {
 		log.Info("cnd only supports running with 1 replica")
 		d.Spec.Replicas = &devReplicas
 	}
-	return nil
+	return cndManifests, nil
 }
 
 func updateCndContainer(c *apiv1.Container, dev *model.Dev) {
@@ -101,17 +119,12 @@ func createInitSyncthingContainer(d *appsv1.Deployment, dev *model.Dev) {
 	d.Spec.Template.Spec.InitContainers = append(d.Spec.Template.Spec.InitContainers, initSyncthingContainer)
 }
 
-func createSyncthingContainer(d *appsv1.Deployment, dev *model.Dev) {
+func createSyncthingContainer(d *appsv1.Deployment, cndManifests []*model.Dev) {
 	syncthingContainer := apiv1.Container{
-		Name:            dev.GetCNDSyncContainer(),
+		Name:            model.CNDSyncContainer,
 		Image:           syncImageTag,
 		ImagePullPolicy: apiv1.PullAlways,
-		VolumeMounts: []apiv1.VolumeMount{
-			apiv1.VolumeMount{
-				Name:      dev.GetCNDSyncVolume(),
-				MountPath: dev.GetCNDSyncMount(),
-			},
-		},
+		VolumeMounts:    []apiv1.VolumeMount{},
 		Ports: []apiv1.ContainerPort{
 			apiv1.ContainerPort{
 				ContainerPort: 8384,
@@ -121,7 +134,15 @@ func createSyncthingContainer(d *appsv1.Deployment, dev *model.Dev) {
 			},
 		},
 	}
-
+	for _, dev := range cndManifests {
+		syncthingContainer.VolumeMounts = append(
+			syncthingContainer.VolumeMounts,
+			apiv1.VolumeMount{
+				Name:      dev.GetCNDSyncVolume(),
+				MountPath: dev.GetCNDSyncMount(),
+			},
+		)
+	}
 	d.Spec.Template.Spec.Containers = append(d.Spec.Template.Spec.Containers, syncthingContainer)
 }
 

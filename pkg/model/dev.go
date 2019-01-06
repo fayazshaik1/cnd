@@ -18,37 +18,43 @@ const (
 	// CNDDeploymentAnnotation is the original deployment manifest
 	CNDDeploymentAnnotation = "cnd.okteto.com/manifest"
 
-	cndInitSyncContainerTemplate = "cnd-init-%s"
-	cndSyncContainerTemplate     = "cnd-%s"
-	cndSyncVolumeTemplate        = "cnd-data-%s"
-	cndSyncMountTemplate         = "/var/cnd-sync/%s"
+	// CNDManifestAnnotationPrefix is the prefix for cnd manifest annotations
+	CNDManifestAnnotationPrefix = "cnd.okteto.com/cnd-manifest-"
+
+	// CNDSyncContainer is the name of the container running syncthing
+	CNDSyncContainer = "cnd-sync"
+
+	cndManifestAnnotationTemplate = "cnd.okteto.com/cnd-manifest-%s"
+	cndInitSyncContainerTemplate  = "cnd-init-%s"
+	cndSyncVolumeTemplate         = "cnd-data-%s"
+	cndSyncMountTemplate          = "/var/cnd-sync/%s"
 )
 
 //Dev represents a cloud native development environment
 type Dev struct {
-	Swap    Swap              `yaml:"swap"`
-	Mount   Mount             `yaml:"mount"`
-	Scripts map[string]string `yaml:"scripts"`
+	Swap    Swap              `json:"swap" yaml:"swap"`
+	Mount   Mount             `json:"mount" yaml:"mount"`
+	Scripts map[string]string `json:"scripts" yaml:"scripts"`
 }
 
 //Swap represents the metadata for the container to be swapped
 type Swap struct {
-	Deployment Deployment `yaml:"deployment"`
+	Deployment Deployment `json:"deployment" yaml:"deployment"`
 }
 
 //Deployment represents the container to be swapped
 type Deployment struct {
-	Name      string   `yaml:"name"`
-	Container string   `yaml:"container,omitempty"`
-	Image     string   `yaml:"image"`
-	Command   []string `yaml:"command,omitempty"`
-	Args      []string `yaml:"args,omitempty"`
+	Name      string   `json:"name" yaml:"name"`
+	Container string   `json:"container,omitempty" yaml:"container,omitempty"`
+	Image     string   `json:"image" yaml:"image"`
+	Command   []string `json:"command,omitempty" yaml:"command,omitempty"`
+	Args      []string `json:"args,omitempty" yaml:"args,omitempty"`
 }
 
 //Mount represents how the local filesystem is mounted
 type Mount struct {
-	Source string `yaml:"source"`
-	Target string `yaml:"target"`
+	Source string `json:"source" yaml:"source"`
+	Target string `json:"target" yaml:"target"`
 }
 
 //NewDev returns a new instance of dev with default values
@@ -135,14 +141,14 @@ func (dev *Dev) fixPath(originalPath string) {
 	}
 }
 
+// GetCNDManifestAnnotation returns the CND manifest annotation for a given container
+func (dev *Dev) GetCNDManifestAnnotation() string {
+	return fmt.Sprintf(cndManifestAnnotationTemplate, dev.Swap.Deployment.Container)
+}
+
 // GetCNDInitSyncContainer returns the CND init sync container name for a given container
 func (dev *Dev) GetCNDInitSyncContainer() string {
 	return fmt.Sprintf(cndInitSyncContainerTemplate, dev.Swap.Deployment.Container)
-}
-
-// GetCNDSyncContainer returns the CND sync container name for a given container
-func (dev *Dev) GetCNDSyncContainer() string {
-	return fmt.Sprintf(cndSyncContainerTemplate, dev.Swap.Deployment.Container)
 }
 
 // GetCNDSyncVolume returns the CND sync volume name for a given container

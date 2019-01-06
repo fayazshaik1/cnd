@@ -1,8 +1,11 @@
 package deployments
 
 import (
+	"encoding/json"
 	"fmt"
+	"strings"
 
+	"github.com/okteto/cnd/pkg/model"
 	log "github.com/sirupsen/logrus"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -73,6 +76,39 @@ func setAnnotation(o metav1.Object, key, value string) {
 	}
 	annotations[key] = value
 	o.SetAnnotations(annotations)
+}
+
+func getCNDManifests(d *appsv1.Deployment) ([]*model.Dev, error) {
+	manifests := []*model.Dev{}
+	annotations := d.GetObjectMeta().GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	var dev *model.Dev
+	for k, v := range annotations {
+		if strings.HasPrefix(k, model.CNDManifestAnnotationPrefix) {
+			fmt.Println("Anotation")
+			fmt.Println(k, v)
+			dev = &model.Dev{}
+			if err := json.Unmarshal([]byte(v), dev); err != nil {
+				return nil, err
+			}
+			manifests = append(manifests, dev)
+		}
+	}
+	return manifests, nil
+}
+
+func setCNDManifests(d *appsv1.Deployment, current *appsv1.Deployment) {
+	annotations := current.GetObjectMeta().GetAnnotations()
+	if annotations == nil {
+		annotations = map[string]string{}
+	}
+	for k, v := range annotations {
+		if strings.HasPrefix(k, model.CNDManifestAnnotationPrefix) {
+			setAnnotation(d.GetObjectMeta(), k, v)
+		}
+	}
 }
 
 func getDevContainerOrFirst(container string, containers []apiv1.Container) string {

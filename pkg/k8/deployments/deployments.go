@@ -18,53 +18,56 @@ import (
 )
 
 //DevModeOn activates a cloud native development for a given k8 deployment
-func DevModeOn(dev *model.Dev, namespace string, c *kubernetes.Clientset) (string, error) {
+func DevModeOn(dev *model.Dev, namespace string, c *kubernetes.Clientset) ([]*model.Dev, error) {
 	d, err := loadDeployment(namespace, dev.Swap.Deployment.Name, c)
 	dev.Swap.Deployment.Container = getDevContainerOrFirst(dev.Swap.Deployment.Container, d.Spec.Template.Spec.Containers)
 
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	manifest := getAnnotation(d.GetObjectMeta(), model.CNDDeploymentAnnotation)
 	if manifest != "" {
 		dOrig := &appsv1.Deployment{}
 		if err := json.Unmarshal([]byte(manifest), dOrig); err != nil {
-			return "", err
+			return nil, err
 		}
+		//TODO: this later, or serialized manifest is wrong
+		setCNDManifests(dOrig, d)
+		dOrig.ResourceVersion = ""
 		d = dOrig
-		d.ResourceVersion = ""
+		fmt.Printf("Annotated orig deployment: %+v\n", d)
 	}
 
-	if err := translateToDevModeDeployment(d, dev); err != nil {
-		return "", err
-	}
-
-	name, err := deploy(d, c)
+	cndManifests, err := translateToDevModeDeployment(d, dev)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return name, nil
+	if err := deploy(d, c); err != nil {
+		return nil, err
+	}
+
+	return cndManifests, nil
 }
 
 //DevModeOff deactivates a cloud native development
-func DevModeOff(dev *model.Dev, namespace string, c *kubernetes.Clientset) (string, error) {
+func DevModeOff(dev *model.Dev, namespace string, c *kubernetes.Clientset) error {
 	d, err := loadDeployment(namespace, dev.Swap.Deployment.Name, c)
 	if err != nil {
-		return "", err
+		return err
 	}
 
 	manifest := getAnnotation(d.GetObjectMeta(), model.CNDDeploymentAnnotation)
 	if manifest == "" {
 		fullname := GetFullName(d.Namespace, d.Name)
 		log.Debugf("%s doesn't have the %s annotation", fullname, model.CNDDeploymentAnnotation)
-		return d.Name, nil
+		return nil
 	}
 
 	dOrig := &appsv1.Deployment{}
 	if err := json.Unmarshal([]byte(manifest), dOrig); err != nil {
-		return "", err
+		return err
 	}
 	dOrig.ResourceVersion = ""
 
@@ -72,7 +75,7 @@ func DevModeOff(dev *model.Dev, namespace string, c *kubernetes.Clientset) (stri
 	return deploy(dOrig, c)
 }
 
-func deploy(d *appsv1.Deployment, c *kubernetes.Clientset) (string, error) {
+func deploy(d *appsv1.Deployment, c *kubernetes.Clientset) error {
 	deploymentName := GetFullName(d.Namespace, d.Name)
 	dClient := c.AppsV1().Deployments(d.Namespace)
 
@@ -80,18 +83,18 @@ func deploy(d *appsv1.Deployment, c *kubernetes.Clientset) (string, error) {
 		log.Infof("Creating deployment '%s'...", deploymentName)
 		_, err := dClient.Create(d)
 		if err != nil {
-			return "", fmt.Errorf("Error creating kubernetes deployment: %s", err)
+			return fmt.Errorf("Error creating kubernetes deployment: %s", err)
 		}
 		log.Infof("Created deployment %s", deploymentName)
 	} else {
 		log.Infof("Updating deployment '%s'...", deploymentName)
 		_, err := dClient.Update(d)
 		if err != nil {
-			return "", fmt.Errorf("Error updating kubernetes deployment: %s", err)
+			return fmt.Errorf("Error updating kubernetes deployment: %s", err)
 		}
 	}
 
-	return d.Name, nil
+	return nil
 }
 
 // GetCNDPod returns the pod that has the cnd containers
@@ -139,44 +142,46 @@ func GetCNDPod(c *kubernetes.Clientset, namespace, deploymentName, devContainer 
 }
 
 // InitVolumeWithTarball initializes the remote volume with a local tarball
-func InitVolumeWithTarball(c *kubernetes.Clientset, config *rest.Config, namespace, podName string, dev *model.Dev) error {
-	copied := false
-	tries := 0
-	for tries < 30 && !copied {
-		pod, err := c.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
-		if err != nil {
-			return err
-		}
-		for _, status := range pod.Status.InitContainerStatuses {
-			if status.Name == dev.GetCNDInitSyncContainer() {
-				if status.State.Waiting != nil {
-					time.Sleep(1 * time.Second)
-				}
-				if status.State.Running != nil {
-					if copied {
+func InitVolumeWithTarball(c *kubernetes.Clientset, config *rest.Config, namespace, podName string, cndManifests []*model.Dev) error {
+	for _, dev := range cndManifests {
+		copied := false
+		tries := 0
+		for tries < 30 && !copied {
+			pod, err := c.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
+			if err != nil {
+				return err
+			}
+			for _, status := range pod.Status.InitContainerStatuses {
+				if status.Name == dev.GetCNDInitSyncContainer() {
+					if status.State.Waiting != nil {
 						time.Sleep(1 * time.Second)
-					} else {
-						if err := cp.Copy(c, config, namespace, pod, dev); err != nil {
-							return err
+					}
+					if status.State.Running != nil {
+						if copied {
+							time.Sleep(1 * time.Second)
+						} else {
+							if err := cp.Copy(c, config, namespace, pod, dev); err != nil {
+								return err
+							}
+							copied = true
+						}
+					}
+					if status.State.Terminated != nil {
+						if status.State.Terminated.ExitCode != 0 {
+							return fmt.Errorf("Volume initialization failed with exit code %d", status.State.Terminated.ExitCode)
 						}
 						copied = true
 					}
+					break
 				}
-				if status.State.Terminated != nil {
-					if status.State.Terminated.ExitCode != 0 {
-						return fmt.Errorf("Volume initialization failed with exit code %d", status.State.Terminated.ExitCode)
-					}
-					copied = true
-				}
-				break
 			}
+			tries++
 		}
-		tries++
+		if tries == 30 {
+			return fmt.Errorf("kubernetes is taking too long to create the cloud native environment. Please check for errors or try again")
+		}
 	}
-	if tries == 30 {
-		return fmt.Errorf("kubernetes is taking too long to create the cloud native environment. Please check for errors or try again")
-	}
-	tries = 0
+	tries := 0
 	for tries < 30 {
 		pod, err := c.CoreV1().Pods(namespace).Get(podName, metav1.GetOptions{})
 		if err != nil {

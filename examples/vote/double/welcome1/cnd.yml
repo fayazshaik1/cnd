@@ -1,0 +1,7 @@
+swap:
+  deployment:
+    name: welcome
+    container: web1
+mount:
+  source: .
+  target: /src

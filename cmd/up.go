@@ -42,26 +42,26 @@ func executeUp(devPath string) error {
 		return err
 	}
 
-	name, err := deployments.DevModeOn(dev, namespace, client)
+	cndManifests, err := deployments.DevModeOn(dev, namespace, client)
 	if err != nil {
 		return err
 	}
 
-	pod, err := deployments.GetCNDPod(client, namespace, name, dev.Swap.Deployment.Container)
+	pod, err := deployments.GetCNDPod(client, namespace, dev.Swap.Deployment.Name, dev.Swap.Deployment.Container)
 	if err != nil {
 		return err
 	}
 
-	if err := deployments.InitVolumeWithTarball(client, restConfig, namespace, pod.Name, dev); err != nil {
+	if err := deployments.InitVolumeWithTarball(client, restConfig, namespace, pod.Name, cndManifests); err != nil {
 		return err
 	}
 
-	sy, err := syncthing.NewSyncthing(name, namespace, dev.Mount.Source)
+	sy, err := syncthing.NewSyncthing(dev.Swap.Deployment.Name, namespace, dev.Mount.Source)
 	if err != nil {
 		return err
 	}
 
-	fullname := deployments.GetFullName(namespace, name)
+	fullname := deployments.GetFullName(namespace, dev.Swap.Deployment.Name)
 
 	pf, err := forward.NewCNDPortForward(dev.Mount.Source, sy.RemoteAddress, fullname)
 	if err != nil {
@@ -72,7 +72,7 @@ func executeUp(devPath string) error {
 		return err
 	}
 
-	err = storage.Insert(namespace, name, dev.Swap.Deployment.Container, sy.LocalPath, sy.GUIAddress)
+	err = storage.Insert(namespace, dev.Swap.Deployment.Name, dev.Swap.Deployment.Container, sy.LocalPath, sy.GUIAddress)
 	if err != nil {
 		if err == storage.ErrAlreadyRunning {
 			return fmt.Errorf("there is already an entry for %s. Are you running 'cnd up' somewhere else?", fullname)

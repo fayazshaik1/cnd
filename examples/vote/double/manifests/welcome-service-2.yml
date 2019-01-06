@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: welcome2
+spec:
+  type: LoadBalancer
+  ports:
+  - name: "web2"
+    port: 8081
+  selector:
+    app: welcome
+  

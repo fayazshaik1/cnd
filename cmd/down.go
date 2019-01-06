@@ -36,17 +36,16 @@ func executeDown(devPath string) error {
 		return err
 	}
 
-	name, err := deployments.DevModeOff(dev, namespace, client)
+	if err := deployments.DevModeOff(dev, namespace, client); err != nil {
+		return err
+	}
+
+	syncthing, err := syncthing.NewSyncthing(dev.Swap.Deployment.Name, namespace, "")
 	if err != nil {
 		return err
 	}
 
-	syncthing, err := syncthing.NewSyncthing(name, namespace, "")
-	if err != nil {
-		return err
-	}
-
-	storage.Delete(namespace, name)
+	storage.Delete(namespace, dev.Swap.Deployment.Name)
 
 	err = syncthing.Stop()
 	if err != nil {
