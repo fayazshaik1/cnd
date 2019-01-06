@@ -14,6 +14,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/okteto/cnd/pkg/model"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -41,8 +42,8 @@ type Syncthing struct {
 	binPath          string
 	Home             string
 	Name             string
+	CNDManifests     []*model.Dev
 	Namespace        string
-	LocalPath        string
 	RemoteAddress    string
 	RemoteDeviceID   string
 	APIKey           string
@@ -52,7 +53,7 @@ type Syncthing struct {
 }
 
 // NewSyncthing constructs a new Syncthing.
-func NewSyncthing(name, namespace, localPath string) (*Syncthing, error) {
+func NewSyncthing(namespace string, cndManifests []*model.Dev) (*Syncthing, error) {
 
 	remotePort, err := getAvailablePort()
 	if err != nil {
@@ -72,10 +73,10 @@ func NewSyncthing(name, namespace, localPath string) (*Syncthing, error) {
 	s := &Syncthing{
 		APIKey:           "cnd",
 		binPath:          "syncthing",
-		Name:             name,
+		Name:             cndManifests[0].Swap.Deployment.Name,
+		CNDManifests:     cndManifests,
 		Namespace:        namespace,
-		Home:             path.Join(os.Getenv("HOME"), ".cnd", namespace, name),
-		LocalPath:        localPath,
+		Home:             path.Join(os.Getenv("HOME"), ".cnd", namespace, cndManifests[0].Swap.Deployment.Name),
 		RemoteAddress:    fmt.Sprintf("tcp://localhost:%d", remotePort),
 		RemoteDeviceID:   DefaultRemoteDeviceID,
 		FileWatcherDelay: DefaultFileWatcherDelay,
@@ -139,8 +140,11 @@ func (s *Syncthing) initConfig() error {
 	if err := configTemplate.Execute(buf, s); err != nil {
 		return err
 	}
+	fmt.Println("CONFIG:")
+	a := buf.Bytes()
+	fmt.Println(string(a))
 
-	if err := ioutil.WriteFile(path.Join(s.Home, configFile), buf.Bytes(), 0700); err != nil {
+	if err := ioutil.WriteFile(path.Join(s.Home, configFile), a, 0700); err != nil {
 		return err
 	}
 

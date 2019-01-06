@@ -58,6 +58,7 @@ func translateToDevModeDeployment(d *appsv1.Deployment, dev *model.Dev) ([]*mode
 	}
 
 	createSyncthingContainer(d, cndManifests)
+	createSyncthingSecretVolume(d, cndManifests[0])
 
 	fmt.Printf("Final deployment: %+v\n", d)
 	if *(d.Spec.Replicas) != devReplicas {
@@ -124,7 +125,12 @@ func createSyncthingContainer(d *appsv1.Deployment, cndManifests []*model.Dev) {
 		Name:            model.CNDSyncContainer,
 		Image:           syncImageTag,
 		ImagePullPolicy: apiv1.PullAlways,
-		VolumeMounts:    []apiv1.VolumeMount{},
+		VolumeMounts: []apiv1.VolumeMount{
+			apiv1.VolumeMount{
+				Name:      model.CNDSyncSecretVolume,
+				MountPath: "/var/syncthing/secret/",
+			},
+		},
 		Ports: []apiv1.ContainerPort{
 			apiv1.ContainerPort{
 				ContainerPort: 8384,
@@ -152,6 +158,26 @@ func createSyncthingVolume(d *appsv1.Deployment, dev *model.Dev) {
 	}
 
 	syncVolume := apiv1.Volume{Name: dev.GetCNDSyncVolume()}
+
+	d.Spec.Template.Spec.Volumes = append(
+		d.Spec.Template.Spec.Volumes,
+		syncVolume,
+	)
+}
+
+func createSyncthingSecretVolume(d *appsv1.Deployment, dev *model.Dev) {
+	if d.Spec.Template.Spec.Volumes == nil {
+		d.Spec.Template.Spec.Volumes = []apiv1.Volume{}
+	}
+
+	syncVolume := apiv1.Volume{
+		Name: model.CNDSyncSecretVolume,
+		VolumeSource: apiv1.VolumeSource{
+			Secret: &apiv1.SecretVolumeSource{
+				SecretName: dev.GetCNDSyncSecret(),
+			},
+		},
+	}
 
 	d.Spec.Template.Spec.Volumes = append(
 		d.Spec.Template.Spec.Volumes,

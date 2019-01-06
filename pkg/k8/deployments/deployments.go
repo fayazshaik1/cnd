@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 
 	"github.com/okteto/cnd/pkg/k8/cp"
+	"github.com/okteto/cnd/pkg/k8/secrets"
 	"github.com/okteto/cnd/pkg/model"
 	log "github.com/sirupsen/logrus"
 
@@ -44,6 +45,10 @@ func DevModeOn(dev *model.Dev, namespace string, c *kubernetes.Clientset) ([]*mo
 		return nil, err
 	}
 
+	if err := secrets.Create(d, cndManifests, c); err != nil {
+		return nil, err
+	}
+
 	if err := deploy(d, c); err != nil {
 		return nil, err
 	}
@@ -72,7 +77,16 @@ func DevModeOff(dev *model.Dev, namespace string, c *kubernetes.Clientset) error
 	dOrig.ResourceVersion = ""
 
 	log.Infof("restoring the production configuration")
-	return deploy(dOrig, c)
+	if err := deploy(dOrig, c); err != nil {
+		return err
+	}
+
+	log.Infof("deleting syncthing secret")
+	if err := secrets.Delete(d, dev, c); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func deploy(d *appsv1.Deployment, c *kubernetes.Clientset) error {

@@ -40,7 +40,7 @@ func executeDown(devPath string) error {
 		return err
 	}
 
-	syncthing, err := syncthing.NewSyncthing(dev.Swap.Deployment.Name, namespace, "")
+	syncthing, err := syncthing.NewSyncthing(namespace, []*model.Dev{dev})
 	if err != nil {
 		return err
 	}

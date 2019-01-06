@@ -24,10 +24,14 @@ const (
 	// CNDSyncContainer is the name of the container running syncthing
 	CNDSyncContainer = "cnd-sync"
 
+	// CNDSyncSecretVolume is the name of the volume mounting the secret
+	CNDSyncSecretVolume = "cnd-sync-secret"
+
 	cndManifestAnnotationTemplate = "cnd.okteto.com/cnd-manifest-%s"
 	cndInitSyncContainerTemplate  = "cnd-init-%s"
 	cndSyncVolumeTemplate         = "cnd-data-%s"
 	cndSyncMountTemplate          = "/var/cnd-sync/%s"
+	cndSyncSecretTemplate         = "cnd-sync-secret-%s"
 )
 
 //Dev represents a cloud native development environment
@@ -159,4 +163,9 @@ func (dev *Dev) GetCNDSyncVolume() string {
 // GetCNDSyncMount returns the CND sync mount for a given container
 func (dev *Dev) GetCNDSyncMount() string {
 	return fmt.Sprintf(cndSyncMountTemplate, dev.Swap.Deployment.Container)
+}
+
+// GetCNDSyncSecret returns the CND sync secret for a given deployment
+func (dev *Dev) GetCNDSyncSecret() string {
+	return fmt.Sprintf(cndSyncSecretTemplate, dev.Swap.Deployment.Name)
 }

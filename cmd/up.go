@@ -56,7 +56,7 @@ func executeUp(devPath string) error {
 		return err
 	}
 
-	sy, err := syncthing.NewSyncthing(dev.Swap.Deployment.Name, namespace, dev.Mount.Source)
+	sy, err := syncthing.NewSyncthing(namespace, cndManifests)
 	if err != nil {
 		return err
 	}
@@ -72,14 +72,15 @@ func executeUp(devPath string) error {
 		return err
 	}
 
-	err = storage.Insert(namespace, dev.Swap.Deployment.Name, dev.Swap.Deployment.Container, sy.LocalPath, sy.GUIAddress)
-	if err != nil {
-		if err == storage.ErrAlreadyRunning {
-			return fmt.Errorf("there is already an entry for %s. Are you running 'cnd up' somewhere else?", fullname)
-		}
+	storage.Insert(namespace, dev.Swap.Deployment.Name, dev.Swap.Deployment.Container, dev.Mount.Source, sy.GUIAddress)
+	// err = storage.Insert(namespace, dev.Swap.Deployment.Name, dev.Swap.Deployment.Container, sy.LocalPath, sy.GUIAddress)
+	// if err != nil {
+	// 	if err == storage.ErrAlreadyRunning {
+	// 		return fmt.Errorf("there is already an entry for %s. Are you running 'cnd up' somewhere else?", fullname)
+	// 	}
 
-		return err
-	}
+	// 	return err
+	// }
 
 	channel := make(chan os.Signal, 1)
 	signal.Notify(channel, os.Interrupt)
