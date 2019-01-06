@@ -32,8 +32,8 @@ func DevModeOn(dev *model.Dev, namespace string, c *kubernetes.Clientset) (strin
 		if err := json.Unmarshal([]byte(manifest), dOrig); err != nil {
 			return "", err
 		}
-		dOrig.ResourceVersion = ""
 		d = dOrig
+		d.ResourceVersion = ""
 	}
 
 	if err := translateToDevModeDeployment(d, dev); err != nil {
@@ -117,12 +117,9 @@ func GetCNDPod(c *kubernetes.Clientset, namespace, deploymentName, devContainer 
 		}
 
 		if len(pendingOrRunningPods) == 1 {
-			if devContainer != "" {
-				if !isContainerInPod(&pendingOrRunningPods[0], devContainer) {
-					return nil, fmt.Errorf("container %s doesn't exist in the pod", devContainer)
-				}
+			if !isContainerInPod(&pendingOrRunningPods[0], devContainer) {
+				return nil, fmt.Errorf("container %s doesn't exist in the pod", devContainer)
 			}
-
 			return &pendingOrRunningPods[0], nil
 		}
 
@@ -142,7 +139,7 @@ func GetCNDPod(c *kubernetes.Clientset, namespace, deploymentName, devContainer 
 }
 
 // InitVolumeWithTarball initializes the remote volume with a local tarball
-func InitVolumeWithTarball(c *kubernetes.Clientset, config *rest.Config, namespace, podName, folder string) error {
+func InitVolumeWithTarball(c *kubernetes.Clientset, config *rest.Config, namespace, podName string, dev *model.Dev) error {
 	copied := false
 	tries := 0
 	for tries < 30 && !copied {
@@ -151,7 +148,7 @@ func InitVolumeWithTarball(c *kubernetes.Clientset, config *rest.Config, namespa
 			return err
 		}
 		for _, status := range pod.Status.InitContainerStatuses {
-			if status.Name == model.CNDInitSyncContainerName {
+			if status.Name == dev.GetCNDInitSyncContainer() {
 				if status.State.Waiting != nil {
 					time.Sleep(1 * time.Second)
 				}
@@ -159,7 +156,7 @@ func InitVolumeWithTarball(c *kubernetes.Clientset, config *rest.Config, namespa
 					if copied {
 						time.Sleep(1 * time.Second)
 					} else {
-						if err := cp.Copy(c, config, namespace, pod, folder); err != nil {
+						if err := cp.Copy(c, config, namespace, pod, dev); err != nil {
 							return err
 						}
 						copied = true

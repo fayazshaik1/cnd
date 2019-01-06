@@ -52,7 +52,7 @@ func executeUp(devPath string) error {
 		return err
 	}
 
-	if err := deployments.InitVolumeWithTarball(client, restConfig, namespace, pod.Name, dev.Mount.Source); err != nil {
+	if err := deployments.InitVolumeWithTarball(client, restConfig, namespace, pod.Name, dev); err != nil {
 		return err
 	}
 

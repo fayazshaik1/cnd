@@ -3,7 +3,6 @@ package deployments
 import (
 	"fmt"
 
-	"github.com/okteto/cnd/pkg/model"
 	log "github.com/sirupsen/logrus"
 
 	appsv1 "k8s.io/api/apps/v1"
@@ -79,11 +78,8 @@ func setAnnotation(o metav1.Object, key, value string) {
 func getDevContainerOrFirst(container string, containers []apiv1.Container) string {
 	if container == "" {
 		for _, c := range containers {
-			if c.Name != model.CNDSyncContainerName {
-				container = c.Name
-			}
+			return c.Name
 		}
 	}
-
 	return container
 }

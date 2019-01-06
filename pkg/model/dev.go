@@ -18,14 +18,10 @@ const (
 	// CNDDeploymentAnnotation is the original deployment manifest
 	CNDDeploymentAnnotation = "cnd.okteto.com/manifest"
 
-	// CNDInitSyncContainerName is the name of the container initializing the shared volume
-	CNDInitSyncContainerName = "cnd-init-syncthing"
-
-	// CNDSyncContainerName is the name of the container running syncthing
-	CNDSyncContainerName = "cnd-syncthing"
-
-	// CNDSyncVolumeName is the name of synched volume
-	CNDSyncVolumeName = "cnd-sync"
+	cndInitSyncContainerTemplate = "cnd-init-%s"
+	cndSyncContainerTemplate     = "cnd-%s"
+	cndSyncVolumeTemplate        = "cnd-data-%s"
+	cndSyncMountTemplate         = "/var/cnd-sync/%s"
 )
 
 //Dev represents a cloud native development environment
@@ -137,4 +133,24 @@ func (dev *Dev) fixPath(originalPath string) {
 			dev.Mount.Source = path.Join(wd, path.Dir(originalPath), dev.Mount.Source)
 		}
 	}
+}
+
+// GetCNDInitSyncContainer returns the CND init sync container name for a given container
+func (dev *Dev) GetCNDInitSyncContainer() string {
+	return fmt.Sprintf(cndInitSyncContainerTemplate, dev.Swap.Deployment.Container)
+}
+
+// GetCNDSyncContainer returns the CND sync container name for a given container
+func (dev *Dev) GetCNDSyncContainer() string {
+	return fmt.Sprintf(cndSyncContainerTemplate, dev.Swap.Deployment.Container)
+}
+
+// GetCNDSyncVolume returns the CND sync volume name for a given container
+func (dev *Dev) GetCNDSyncVolume() string {
+	return fmt.Sprintf(cndSyncVolumeTemplate, dev.Swap.Deployment.Container)
+}
+
+// GetCNDSyncMount returns the CND sync mount for a given container
+func (dev *Dev) GetCNDSyncMount() string {
+	return fmt.Sprintf(cndSyncMountTemplate, dev.Swap.Deployment.Container)
 }

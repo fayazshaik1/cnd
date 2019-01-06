@@ -9,6 +9,11 @@ import (
 	apiv1 "k8s.io/api/core/v1"
 )
 
+const (
+	initSyncImageTag = "okteto/init-syncthing:0.4.0"
+	syncImageTag     = "okteto/syncthing:0.4.0"
+)
+
 var (
 	devReplicas                      int32 = 1
 	devTerminationGracePeriodSeconds int64
@@ -27,7 +32,7 @@ func translateToDevModeDeployment(d *appsv1.Deployment, dev *model.Dev) error {
 	d.Spec.Template.Spec.TerminationGracePeriodSeconds = &devTerminationGracePeriodSeconds
 
 	for i, c := range d.Spec.Template.Spec.Containers {
-		if c.Name == dev.Swap.Deployment.Container || dev.Swap.Deployment.Container == "" {
+		if c.Name == dev.Swap.Deployment.Container {
 			updateCndContainer(&d.Spec.Template.Spec.Containers[i], dev)
 			break
 		}
@@ -65,7 +70,7 @@ func updateCndContainer(c *apiv1.Container, dev *model.Dev) {
 	}
 
 	volumeMount := apiv1.VolumeMount{
-		Name:      model.CNDSyncVolumeName,
+		Name:      dev.GetCNDSyncVolume(),
 		MountPath: dev.Mount.Target,
 	}
 
@@ -79,11 +84,11 @@ func updateCndContainer(c *apiv1.Container, dev *model.Dev) {
 
 func createInitSyncthingContainer(d *appsv1.Deployment, dev *model.Dev) {
 	initSyncthingContainer := apiv1.Container{
-		Name:  model.CNDInitSyncContainerName,
-		Image: "okteto/init-syncthing:0.3.4",
+		Name:  dev.GetCNDInitSyncContainer(),
+		Image: initSyncImageTag,
 		VolumeMounts: []apiv1.VolumeMount{
 			apiv1.VolumeMount{
-				Name:      model.CNDSyncVolumeName,
+				Name:      dev.GetCNDSyncVolume(),
 				MountPath: "/src",
 			},
 		},
@@ -98,12 +103,13 @@ func createInitSyncthingContainer(d *appsv1.Deployment, dev *model.Dev) {
 
 func createSyncthingContainer(d *appsv1.Deployment, dev *model.Dev) {
 	syncthingContainer := apiv1.Container{
-		Name:  model.CNDSyncContainerName,
-		Image: "okteto/syncthing:latest",
+		Name:            dev.GetCNDSyncContainer(),
+		Image:           syncImageTag,
+		ImagePullPolicy: apiv1.PullAlways,
 		VolumeMounts: []apiv1.VolumeMount{
 			apiv1.VolumeMount{
-				Name:      model.CNDSyncVolumeName,
-				MountPath: "/var/cnd-sync",
+				Name:      dev.GetCNDSyncVolume(),
+				MountPath: dev.GetCNDSyncMount(),
 			},
 		},
 		Ports: []apiv1.ContainerPort{
@@ -124,7 +130,7 @@ func createSyncthingVolume(d *appsv1.Deployment, dev *model.Dev) {
 		d.Spec.Template.Spec.Volumes = []apiv1.Volume{}
 	}
 
-	syncVolume := apiv1.Volume{Name: model.CNDSyncVolumeName}
+	syncVolume := apiv1.Volume{Name: dev.GetCNDSyncVolume()}
 
 	d.Spec.Template.Spec.Volumes = append(
 		d.Spec.Template.Spec.Volumes,
