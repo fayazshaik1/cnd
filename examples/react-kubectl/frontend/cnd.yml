@@ -1,0 +1,11 @@
+swap:
+  deployment:
+    name: frontend
+    image: okteto/node:11
+    command:
+    - sh
+    - -c
+    - yarn install && yarn start
+mount:
+  source: .
+  target: /usr/src/app
