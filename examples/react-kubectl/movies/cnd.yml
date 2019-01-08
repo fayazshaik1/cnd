@@ -1,11 +1,11 @@
 swap:
   deployment:
-    name: frontend
+    name: movies
     image: okteto/node:11
     command:
     - sh
     - -c
-    - yarn install && yarn start
+    - tail -f /dev/null
 mount:
   source: .
   target: /usr/src/app

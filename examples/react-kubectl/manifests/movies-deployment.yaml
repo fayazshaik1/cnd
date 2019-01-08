@@ -1,14 +1,14 @@
 apiVersion: extensions/v1beta1
 kind: Deployment
 metadata:
-  name: frontend
+  name: movies
 spec:
   replicas: 1
   template:
     metadata:
       labels:
-        app: frontend
+        app: movies
     spec:
       containers:
       - image: rlamana/example-react
-        name: frontend
+        name: movies

@@ -5,12 +5,13 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const pkg = require('./package.json');
 
 const appPath = path.join(__dirname, '/src');
-const buildPath = path.resolve(path.join(__dirname, '/build'));
+const buildPath = path.resolve(path.join(__dirname, '/dist'));
 
 module.exports = {
   context: appPath,
   mode: 'development',
   entry: [
+    'webpack-dev-server/client?http://0.0.0.0:9000',
     './index.jsx'
   ],
   output: {
